@@ -1,0 +1,32 @@
+[
+  {
+    "id": "W1",
+    "name": "Ravi",
+    "skill": "Cutting",
+    "status": "available"
+  },
+  {
+    "id": "W2",
+    "name": "Priya",
+    "skill": "Drilling",
+    "status": "available"
+  },
+  {
+    "id": "W3",
+    "name": "Arjun",
+    "skill": "Assembly",
+    "status": "available"
+  },
+  {
+    "id": "W4",
+    "name": "Sneha",
+    "skill": "Finishing",
+    "status": "available"
+  },
+  {
+    "id": "W5",
+    "name": "Kiran",
+    "skill": "Assembly",
+    "status": "available"
+  }
+]

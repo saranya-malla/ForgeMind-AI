@@ -1,0 +1,26 @@
+[
+  {
+    "id": "M1",
+    "name": "Cutter",
+    "process": "Cutting",
+    "status": "available"
+  },
+  {
+    "id": "M2",
+    "name": "DrillPro",
+    "process": "Drilling",
+    "status": "available"
+  },
+  {
+    "id": "M3",
+    "name": "AssemblyX",
+    "process": "Assembly",
+    "status": "available"
+  },
+  {
+    "id": "M4",
+    "name": "FinishPro",
+    "process": "Finishing",
+    "status": "available"
+  }
+]

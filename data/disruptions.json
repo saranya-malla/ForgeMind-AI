@@ -1,0 +1,12 @@
+[
+  {
+    "id": "D001",
+    "type": "machine_breakdown",
+    "machine": "M2",
+    "process": "Drilling",
+    "duration_minutes": 180,
+    "severity": "High",
+    "status": "simulated",
+    "description": "DrillPro (M2) breakdown causing 3-hour downtime for Drilling process"
+  }
+]

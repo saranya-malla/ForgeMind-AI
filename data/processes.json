@@ -1,0 +1,35 @@
+{
+  "total_processing_time_minutes": 165,
+  "stages": [
+    {
+      "order": 1,
+      "process": "Cutting",
+      "duration_minutes": 30,
+      "prerequisites": []
+    },
+    {
+      "order": 2,
+      "process": "Drilling",
+      "duration_minutes": 45,
+      "prerequisites": [
+        "Cutting"
+      ]
+    },
+    {
+      "order": 3,
+      "process": "Assembly",
+      "duration_minutes": 60,
+      "prerequisites": [
+        "Drilling"
+      ]
+    },
+    {
+      "order": 4,
+      "process": "Finishing",
+      "duration_minutes": 30,
+      "prerequisites": [
+        "Assembly"
+      ]
+    }
+  ]
+}
