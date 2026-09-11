@@ -5,8 +5,10 @@ Team: NexForge
 
 This module acts strictly as an API orchestration layer:
 - Exposes health, machine, and order metadata.
-- Orchestrates disruption simulation and recovery plan generation via backend.recovery_engine.
+- Orchestrates disruption simulation and recovery plan generation via backend.recovery_engine (SOLE SOURCE OF TRUTH).
 - Manages in-memory activation of approved recovery plans and active production schedule.
+- Orchestrates the ForgeMind AI Agent 6-stage advisory reasoning workflow (DISRUPTION_ANALYSIS, RESOURCE_IMPACT_ANALYSIS,
+  RECOVERY_PLAN_EVALUATION, TRADEOFF_ANALYSIS, RECOMMENDATION_EXPLANATION, MANAGER_APPROVAL_HANDOFF).
 """
 
 import sys
@@ -250,8 +252,16 @@ def get_production_schedule() -> Dict[str, Any]:
 @app.post("/explain-recovery", tags=["Disruption Management"])
 def explain_recovery() -> Dict[str, Any]:
     """
-    Generate an AI explanation and operational reasoning for the latest candidate recovery plans.
+    Execute the ForgeMind AI Agent 6-stage advisory reasoning workflow for the candidate recovery plans:
+    1. DISRUPTION_ANALYSIS
+    2. RESOURCE_IMPACT_ANALYSIS
+    3. RECOVERY_PLAN_EVALUATION
+    4. TRADEOFF_ANALYSIS
+    5. RECOMMENDATION_EXPLANATION
+    6. MANAGER_APPROVAL_HANDOFF (Advisory handoff to human manager)
+
     Strictly read-only with respect to ACTIVE_PRODUCTION_STATE and LATEST_RECOVERY_DATA.
+    The deterministic recovery engine remains the sole authority for schedules, costs, and scores.
     """
     if LATEST_RECOVERY_DATA is None:
         raise HTTPException(

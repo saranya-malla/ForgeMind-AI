@@ -17,7 +17,67 @@ import json
 import os
 import urllib.error
 import urllib.request
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+AGENT_STAGES: List[str] = [
+    "DISRUPTION_ANALYSIS",
+    "RESOURCE_IMPACT_ANALYSIS",
+    "RECOVERY_PLAN_EVALUATION",
+    "TRADEOFF_ANALYSIS",
+    "RECOMMENDATION_EXPLANATION",
+    "MANAGER_APPROVAL_HANDOFF",
+]
+
+
+def build_agent_stages(
+    diagnosis: str,
+    resources: str,
+    operational_impact: str,
+    tradeoffs: str,
+    recommendation: str,
+    handoff: str,
+) -> List[Dict[str, str]]:
+    """
+    Construct the 6 structured agent workflow stages for Industry 5.0 human-in-the-loop oversight.
+    """
+    return [
+        {
+            "stage": "DISRUPTION_ANALYSIS",
+            "status": "COMPLETED",
+            "title": "Disruption Analysis",
+            "summary": diagnosis,
+        },
+        {
+            "stage": "RESOURCE_IMPACT_ANALYSIS",
+            "status": "COMPLETED",
+            "title": "Resource Impact Analysis",
+            "summary": resources,
+        },
+        {
+            "stage": "RECOVERY_PLAN_EVALUATION",
+            "status": "COMPLETED",
+            "title": "Recovery Plan Evaluation",
+            "summary": operational_impact,
+        },
+        {
+            "stage": "TRADEOFF_ANALYSIS",
+            "status": "COMPLETED",
+            "title": "Trade-off Analysis",
+            "summary": tradeoffs,
+        },
+        {
+            "stage": "RECOMMENDATION_EXPLANATION",
+            "status": "COMPLETED",
+            "title": "Recommendation Explanation",
+            "summary": recommendation,
+        },
+        {
+            "stage": "MANAGER_APPROVAL_HANDOFF",
+            "status": "READY_FOR_DECISION",
+            "title": "Manager Approval Handoff",
+            "summary": handoff,
+        },
+    ]
 
 
 def generate_deterministic_fallback(recovery_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -25,6 +85,7 @@ def generate_deterministic_fallback(recovery_data: Dict[str, Any]) -> Dict[str, 
     Generate a complete, structured, metrics-grounded explanation directly from
     the deterministic engine output without requiring an external AI API.
     Uses actual dynamic values from recovery_data rather than hardcoded metrics.
+    Executes the 6-stage Industry 5.0 advisory agent workflow.
     """
     disruption = recovery_data.get("disruption") or {}
     disruption_id = disruption.get("id", "D001")
@@ -101,8 +162,27 @@ def generate_deterministic_fallback(recovery_data: Dict[str, Any]) -> Dict[str, 
         f"and achieves {rec_adherence}% on-time adherence while limiting expense to ${rec_cost:.0f}."
     )
 
+    handoff = (
+        f"Advisory handoff to Plant Manager: Multi-criteria evaluation recommends {rec_id} ({rec_name}) "
+        f"scoring {rec_score}/100 based on your business priorities ({w_dead}% deadline, {w_cost}% cost, {w_util}% utilization). "
+        f"In accordance with Industry 5.0 human-in-the-loop governance, the AI agent does not execute floor schedule changes. "
+        f"Please review candidate plans and submit formal manager approval to commit this plan to the active production floor."
+    )
+
+    agent_stages = build_agent_stages(
+        diagnosis=diagnosis,
+        resources=resources,
+        operational_impact=operational_impact,
+        tradeoffs=tradeoffs,
+        recommendation=recommendation_justification,
+        handoff=handoff,
+    )
+
     return {
         "provider": "deterministic_fallback",
+        "agent_status": "COMPLETED",
+        "agent_role": "Industry 5.0 Operations Copilot",
+        "agent_stages": agent_stages,
         "executive_summary": exec_summary,
         "disruption_diagnosis": diagnosis,
         "affected_resources": resources,
@@ -110,12 +190,14 @@ def generate_deterministic_fallback(recovery_data: Dict[str, Any]) -> Dict[str, 
         "operational_impact": operational_impact,
         "tradeoff_analysis": tradeoffs,
         "recommendation_justification": recommendation_justification,
+        "manager_approval_handoff": handoff,
     }
 
 
 def generate_ai_explanation(recovery_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Generate an AI explanation using Google Gemini REST API (gemini-2.5-flash).
+    Generate an AI explanation using Google Gemini REST API (gemini-2.5-flash)
+    orchestrated through the 6-stage Industry 5.0 agent workflow.
     Falls back gracefully to deterministic explanation if the key is missing,
     the request times out (4.0s), or any error occurs.
     """
@@ -162,9 +244,11 @@ def generate_ai_explanation(recovery_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     system_instruction = (
-        "You are ForgeMind AI Copilot, an industrial operations analyst for an Industry 5.0 smart factory.\n"
-        "AUTHORITY CONSTRAINTS:\n"
-        "- The provided factory data, disruption data, and plan metrics are AUTHORITATIVE and produced by a deterministic simulation engine.\n"
+        "You are ForgeMind AI Agent, an Industry 5.0 operational reasoning copilot for smart manufacturing.\n"
+        "AUTHORITY AND GOVERNANCE CONSTRAINTS:\n"
+        "- The deterministic recovery engine (backend.recovery_engine) is the SOLE SOURCE OF TRUTH for all schedules, costs, delays, utilization, and scores.\n"
+        "- The AI agent is strictly advisory and CANNOT approve plans, change active schedules, or invent/modify numerical metrics.\n"
+        "- Stage 6 (MANAGER_APPROVAL_HANDOFF) strictly reserves execution authority for human plant managers.\n"
         "- DO NOT invent facts, machines, or numbers.\n"
         "- DO NOT alter or recalculate any numerical values (costs, delays, percentages, or scores).\n"
         "- DO NOT create a new production schedule.\n"
@@ -176,7 +260,14 @@ def generate_ai_explanation(recovery_data: Dict[str, Any]) -> Dict[str, Any]:
     user_prompt = (
         f"Analyze the following deterministic factory disruption and recovery plans:\n"
         f"{json.dumps(prompt_data, indent=2)}\n\n"
-        "Provide clear industrial explanations for plant managers. Return a JSON object with EXACTLY these 7 keys:\n"
+        "Execute the 6-stage Industry 5.0 advisory workflow:\n"
+        "Stage 1: DISRUPTION_ANALYSIS - Root cause and equipment downtime diagnosis.\n"
+        "Stage 2: RESOURCE_IMPACT_ANALYSIS - Primary bottleneck and downstream starvation across workstations.\n"
+        "Stage 3: RECOVERY_PLAN_EVALUATION - Order and schedule delay impact.\n"
+        "Stage 4: TRADEOFF_ANALYSIS - Concise comparison of PLAN A vs PLAN B vs PLAN C.\n"
+        "Stage 5: RECOMMENDATION_EXPLANATION - Why the recommended plan best satisfies the active business weights.\n"
+        "Stage 6: MANAGER_APPROVAL_HANDOFF - Human-in-the-loop decision brief for the plant manager.\n\n"
+        "Return a JSON object with EXACTLY these 8 keys:\n"
         "1. executive_summary: A concise 2-3 sentence overview of the disruption and chosen recovery path.\n"
         "2. disruption_diagnosis: Root cause and duration of the equipment failure.\n"
         "3. affected_resources: Which primary and downstream machines/resources are affected.\n"
@@ -184,6 +275,7 @@ def generate_ai_explanation(recovery_data: Dict[str, Any]) -> Dict[str, Any]:
         "5. operational_impact: Bottlenecks, starvation, and delay consequences.\n"
         "6. tradeoff_analysis: Concise comparison of PLAN A vs PLAN B vs PLAN C.\n"
         "7. recommendation_justification: Why the recommended plan best satisfies the active business weights.\n"
+        "8. manager_approval_handoff: Actionable handoff note for the human plant manager.\n"
     )
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
@@ -236,12 +328,34 @@ def generate_ai_explanation(recovery_data: Dict[str, Any]) -> Dict[str, Any]:
             "recommendation_justification",
         ]
 
-        # Verify all required keys are present and non-empty
+        # Verify all baseline required keys are present and non-empty
         if not all(k in parsed_ai and parsed_ai[k] for k in required_keys):
             return generate_deterministic_fallback(recovery_data)
 
+        handoff = parsed_ai.get("manager_approval_handoff")
+        if not handoff or not isinstance(handoff, str) or not handoff.strip():
+            rec_id = rec.get("plan_id", "The recommended plan")
+            rec_name = rec.get("plan_name", "Recovery Plan")
+            handoff = (
+                f"Advisory handoff to Plant Manager: Multi-criteria evaluation recommends {rec_id} ({rec_name}) "
+                f"for human review. In accordance with Industry 5.0 human-in-the-loop governance, execution authority "
+                f"remains with the plant manager."
+            )
+
+        agent_stages = build_agent_stages(
+            diagnosis=parsed_ai["disruption_diagnosis"],
+            resources=parsed_ai["affected_resources"],
+            operational_impact=parsed_ai["operational_impact"],
+            tradeoffs=parsed_ai["tradeoff_analysis"],
+            recommendation=parsed_ai["recommendation_justification"],
+            handoff=handoff,
+        )
+
         return {
             "provider": "gemini",
+            "agent_status": "COMPLETED",
+            "agent_role": "Industry 5.0 Operations Copilot",
+            "agent_stages": agent_stages,
             "executive_summary": parsed_ai["executive_summary"],
             "disruption_diagnosis": parsed_ai["disruption_diagnosis"],
             "affected_resources": parsed_ai["affected_resources"],
@@ -249,6 +363,7 @@ def generate_ai_explanation(recovery_data: Dict[str, Any]) -> Dict[str, Any]:
             "operational_impact": parsed_ai["operational_impact"],
             "tradeoff_analysis": parsed_ai["tradeoff_analysis"],
             "recommendation_justification": parsed_ai["recommendation_justification"],
+            "manager_approval_handoff": handoff,
         }
 
     except Exception:
