@@ -5,7 +5,12 @@ import OrdersTable from "./components/OrdersTable";
 import DisruptionSimulator from "./components/DisruptionSimulator";
 import RecoveryAnalysis from "./components/RecoveryAnalysis";
 import ActiveScheduleView from "./components/ActiveScheduleView";
-import { fetchMachines, fetchOrders, generateRecoveryPlans, fetchProductionSchedule } from "./api/api";
+import {
+  fetchMachines,
+  fetchOrders,
+  generateRecoveryPlans,
+  fetchProductionSchedule,
+} from "./api/api";
 import "./App.css";
 
 function App() {
@@ -27,18 +32,76 @@ function App() {
   // Active production schedule state (currently manager-approved)
   const [activeSchedule, setActiveSchedule] = useState(null);
 
+  // Notification state
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const saved = localStorage.getItem("forgemind_notifications");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const unreadCount = notifications.filter(
+    (notification) => !notification.read
+  ).length;
+
+  // Persist notifications in browser
+  useEffect(() => {
+    localStorage.setItem(
+      "forgemind_notifications",
+      JSON.stringify(notifications)
+    );
+  }, [notifications]);
+
+  const addNotification = (notification) => {
+    setNotifications((prev) =>
+      [
+        {
+          id: `${Date.now()}-${Math.random()}`,
+          timestamp: new Date().toISOString(),
+          read: false,
+          ...notification,
+        },
+        ...prev,
+      ].slice(0, 20)
+    );
+  };
+
+  const handleMarkRead = (id) => {
+    setNotifications((prev) =>
+      prev.map((notification) =>
+        notification.id === id
+          ? { ...notification, read: true }
+          : notification
+      )
+    );
+  };
+
+  const handleMarkAllRead = () => {
+    setNotifications((prev) =>
+      prev.map((notification) => ({
+        ...notification,
+        read: true,
+      }))
+    );
+  };
+
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       setError(null);
+
       try {
         const [machinesData, ordersData, scheduleData] = await Promise.all([
           fetchMachines(),
           fetchOrders(),
           fetchProductionSchedule().catch(() => null),
         ]);
+
         setMachines(machinesData);
         setOrders(ordersData);
+
         if (scheduleData && scheduleData.status === "active") {
           setActiveSchedule(scheduleData);
         }
@@ -57,26 +120,60 @@ function App() {
 
   const handleDisruptionSimulated = (simResult) => {
     setSimulationResult(simResult);
+
     if (simResult?.disruption?.machine) {
       setDisruptedMachineId(simResult.disruption.machine);
     }
+
     if (simResult?.affected_orders) {
       setAffectedOrderIds(simResult.affected_orders);
     }
-    // Reset candidate proposals on new simulation, but PRESERVE activeSchedule
+
+    // Reset candidate proposals on new simulation,
+    // but PRESERVE activeSchedule
     setRecoveryData(null);
     setRecoveryError(null);
+
+    // 🔴 Notification: Disruption detected
+    const machineId = simResult?.disruption?.machine || "Unknown machine";
+    const duration = simResult?.disruption?.duration_minutes ?? 180;
+    const affectedCount = simResult?.affected_orders?.length || 0;
+
+    addNotification({
+      type: "danger",
+      title: "New Disruption Alert",
+      message: `High-severity breakdown on ${machineId}. Recovery time: ${duration} minutes. ${affectedCount} production orders affected.`,
+    });
   };
 
   const handleGenerateRecoveryPlans = async (
-    weights = { deadline_weight: 0.50, cost_weight: 0.30, utilization_weight: 0.20 }
+    weights = {
+      deadline_weight: 0.5,
+      cost_weight: 0.3,
+      utilization_weight: 0.2,
+    }
   ) => {
     setIsGeneratingPlans(true);
     setRecoveryError(null);
+
     try {
-      // Updates candidate recommendations only; does NOT modify activeSchedule
+      // Updates candidate recommendations only;
+      // does NOT modify activeSchedule
       const data = await generateRecoveryPlans(weights);
       setRecoveryData(data);
+
+      // 🟡 Notification: Recovery plans ready
+      const recommendedPlan =
+        data?.recommended_plan_id ||
+        data?.recommendation?.plan_id ||
+        data?.recommended_plan?.plan_id ||
+        "Review recommended plan";
+
+      addNotification({
+        type: "warning",
+        title: "Recovery Decision Required",
+        message: `Three recovery plans are ready for manager review. Recommended: ${recommendedPlan}.`,
+      });
     } catch (err) {
       setRecoveryError(err.message || "Failed to generate recovery plans.");
     } finally {
@@ -88,12 +185,25 @@ function App() {
     try {
       const scheduleData = await fetchProductionSchedule();
       setActiveSchedule(scheduleData);
+
+      // 🟢 Notification: Recovery plan activated
+      const approvedPlan =
+        scheduleData?.approved_plan_id ||
+        scheduleData?.plan_id ||
+        "Approved recovery plan";
+
+      addNotification({
+        type: "success",
+        title: "Recovery Plan Activated",
+        message: `${approvedPlan} is now active. Production scheduling has been updated.`,
+      });
     } catch (err) {
       console.error("Failed to fetch updated production schedule:", err);
     }
   };
 
   const isApprovedPlanActive = activeSchedule?.status === "active";
+
   const currentStep = isApprovedPlanActive
     ? 6
     : recoveryData
@@ -105,8 +215,14 @@ function App() {
   return (
     <div className="app-layout">
       <Header
-        activePlanId={isApprovedPlanActive ? activeSchedule.approved_plan_id : null}
+        activePlanId={
+          isApprovedPlanActive ? activeSchedule.approved_plan_id : null
+        }
         currentStep={currentStep}
+        notifications={notifications}
+        unreadCount={unreadCount}
+        onMarkAllRead={handleMarkAllRead}
+        onMarkRead={handleMarkRead}
       />
 
       <main className="dashboard-content">
@@ -123,7 +239,8 @@ function App() {
             <h3>Backend Offline or Unreachable</h3>
             <p>{error}</p>
             <p className="error-hint">
-              Start the backend with: <code>uvicorn backend.main:app --port 8000</code>
+              Start the backend with:{" "}
+              <code>uvicorn backend.main:app --port 8000</code>
             </p>
           </div>
         )}
@@ -139,7 +256,10 @@ function App() {
                   <span className="font-mono text-accent">
                     {activeSchedule.approved_plan_id}
                   </span>{" "}
-                  ({activeSchedule.plan_name || activeSchedule.plan_details?.plan_name})
+                  (
+                  {activeSchedule.plan_name ||
+                    activeSchedule.plan_details?.plan_name}
+                  )
                   <span className="alert-detail">
                     Shop-floor scheduling synchronized in-memory.
                   </span>
@@ -161,24 +281,32 @@ function App() {
             {simulationResult && !recoveryData && (
               <div className="action-callout-banner">
                 <div className="callout-text">
-                  <h3>Disruption Active on {simulationResult.disruption?.machine}</h3>
+                  <h3>
+                    Disruption Active on{" "}
+                    {simulationResult.disruption?.machine}
+                  </h3>
+
                   <p>
-                    {simulationResult.affected_orders?.length || 0} downstream production orders impacted.
-                    Engage the multi-objective recovery engine to evaluate mitigation plans.
+                    {simulationResult.affected_orders?.length || 0} downstream
+                    production orders impacted. Engage the multi-objective
+                    recovery engine to evaluate mitigation plans.
                   </p>
                 </div>
+
                 <button
                   type="button"
                   onClick={() => handleGenerateRecoveryPlans()}
                   disabled={isGeneratingPlans}
                   className="btn btn-primary btn-generate-plans"
                 >
-                  {isGeneratingPlans ? "Simulating Recovery..." : "Generate Recovery Plans"}
+                  {isGeneratingPlans
+                    ? "Simulating Recovery..."
+                    : "Generate Recovery Plans"}
                 </button>
               </div>
             )}
 
-            {/* Recovery Analysis Area (Candidate Proposals & Decision) */}
+            {/* Recovery Analysis Area */}
             {simulationResult && (
               <RecoveryAnalysis
                 disruption={simulationResult.disruption}
